@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window
+  windowtype="login-window"
+  id="login-main"
+  title="My Firefox"
+  width="400"
+  height="300"
+  xmlns:html="http://www.w3.org/1999/xhtml"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <script type="application/javascript" src="chrome://login-app/content/main.js"/>
+  <hbox>
+    <spacer flex="1"/>
+
+    <vbox>
+      <hbox>
+        <spacer flex="1"/>
+        <html:img src="imgs/logo.png"/>
+        <spacer flex="1"/>
+      </hbox>
+
+      <groupbox>
+        <grid>
+          <columns>
+            <column flex="1"/>
+            <column flex="2"/>
+          </columns>
+          <rows>
+            <row>
+              <label value="User:"/>
+              <menulist id="accounts-menu" oncommand="promptPassword();">
+                <menupopup>
+                  <menuitem label="Guest" selected="true"/>
+                  <menuitem label="some-user@email.com"/>
+                  <menuitem label="Add account..."/>
+                </menupopup>
+              </menulist>
+            </row>
+            <row>
+              <label id="password-label" value="Password:" hidden="true"/>
+              <textbox id="password-input" width="100px" type="password" hidden="true"/>
+            </row>
+          </rows>
+        </grid>
+      </groupbox>
+      <hbox>
+        <spacer flex="1"/>
+        <button id="login-button" label="Login" oncommand="login();"/>
+      </hbox>
+    </vbox>
+    <spacer flex="1"/>
+  </hbox>
+</window>
