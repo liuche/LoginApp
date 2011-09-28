@@ -1,3 +1,5 @@
+Components.utils.import("resource://services-sync/util.js");
+
 function promptPassword() {
   let menu = document.getElementById("accounts-menu");
   if (menu.selectedIndex == (menu.itemCount - 1)) {
@@ -18,6 +20,11 @@ function login() {
   if (username == "Guest") {
     window.open();
   } else {
-    alert("check credentials for " + username);
+    let passwd = document.getElementById("password-input").value;
+    dump("calculating hash of " + username.toLowerCase() + "\n");
+    let usernameHash = Utils.sha1Base32(username.toLowerCase());
+    dump("sha1:" + usernameHash + "\n");
+    let client = new XMLHttpRequest();
+    //client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
   }
 }

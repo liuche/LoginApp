@@ -32,7 +32,7 @@
               <menulist id="accounts-menu" oncommand="promptPassword();">
                 <menupopup>
                   <menuitem label="Guest" selected="true"/>
-                  <menuitem label="some-user@email.com"/>
+                  <menuitem label="liuche+001@mozilla.com"/>
                   <menuitem label="Add account..."/>
                 </menupopup>
               </menulist>

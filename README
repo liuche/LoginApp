@@ -2,4 +2,7 @@ LoginApp 0.1
 
 LoginApp is a XULRunner app that allows users access to their browser data by logging in through the login application.
 
+To run:
+<path>/firefox -app login-app/application.ini
+
 09/27/11: Still in development stages. 
