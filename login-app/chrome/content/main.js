@@ -35,16 +35,50 @@ function promptPassword() {
   }
 }
 
+function launchAccount() {
+  alert("set up profile");
+};
+
 function login() {
   let username = document.getElementById("accounts-menu").selectedItem.label;
   if (username == "Guest") {
     window.open();
-  } else {
+  } else { // Authenticate against sync account.
+    let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
     let passwd = document.getElementById("password-input").value;
-    dump("calculating hash of " + username.toLowerCase() + "\n");
-    let usernameHash = Utils.sha1Base32(username.toLowerCase());
-    dump("sha1:" + usernameHash + "\n");
-    let client = new XMLHttpRequest();
-    //client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
+
+    // Determine sync server node and get authenticated.
+    let client = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
+    client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
+    client.onreadystatechange = function handler() {
+      // Sync node request succeeded.
+      if (this.readyState == 4 && this.status == 200) {
+        let server = client.responseText;
+
+        // Now authenticate against the server node.
+        client.onreadystatechange = function handler1() {
+          dump("state:" + this.readyState + "/status:" + this.status + "/statusText:" + this.statusText + "\n");
+          if (this.readyState == 4) {
+            switch(this.status) {
+              case 200: // Success!
+                dump("success!\n");
+                launchAccount().bind(this);
+                break;
+              case 401: // Unauthorized
+                alert("Incorrect Password");
+                break;
+              default:
+                alert("Error: " + this.statusText);
+            }
+          }
+        };
+        client.open("GET", server + "1.1/" + usernameHash + "/info/collections\n");
+        client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+        client.send();
+        dump("sent\n");
+      }
+    };
+    client.send();
   }
 }
+
