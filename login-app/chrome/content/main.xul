@@ -12,14 +12,12 @@
   <script type="application/javascript" src="chrome://login-app/content/main.js"/>
   <hbox>
     <spacer flex="1"/>
-
     <vbox>
       <hbox>
         <spacer flex="1"/>
         <html:img src="imgs/logo.png"/>
         <spacer flex="1"/>
       </hbox>
-
       <groupbox>
         <grid>
           <columns>
@@ -29,25 +27,36 @@
           <rows>
             <row>
               <label value="User:"/>
-              <menulist id="accounts-menu" oncommand="promptPassword();">
+              <menulist id="accounts-menu" oncommand="processSelection();">
                 <menupopup>
-                  <menuitem label="Guest" selected="true"/>
-                  <menuitem label="liuche+002@mozilla.com"/>
-                  <menuitem label="Add account..."/>
+                  <script>
+                    loadAccounts();
+                  </script>
                 </menupopup>
               </menulist>
             </row>
-            <row>
-              <label id="password-label" value="Password:" hidden="true"/>
-              <textbox id="password-input" width="100px" type="password" hidden="true"/>
+            <row id="add-row" hidden="true">
+              <spacer flex="1"/>
+              <textbox id="add-input"/>
+            </row>
+            <row id="password-row" hidden="true">
+              <label id="password-label" value="Password:"/>
+              <textbox id="password-input" width="100px" type="password"/>
             </row>
           </rows>
         </grid>
+        <hbox>
+          <spacer flex="1"/>
+          <button id="login-button" label="Login" oncommand="login();"/>
+        </hbox>
       </groupbox>
-      <hbox>
-        <spacer flex="1"/>
-        <button id="login-button" label="Login" oncommand="login();"/>
-      </hbox>
+      <groupbox>
+        <hbox>
+          <label value="I do not have an account"/>
+          <button id="create-button" label="Create Account" 
+                  oncommand="alert('Create account through sync or something');"/>
+        </hbox>
+      </groupbox>
     </vbox>
     <spacer flex="1"/>
   </hbox>
