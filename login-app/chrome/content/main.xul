@@ -23,25 +23,14 @@
           <grid>
             <columns>
               <column flex="1"/>
-              <column flex="2"/>
+              <column flex="1"/>
             </columns>
             <rows>
               <row>
-                <label value="User:"/>
-                <menulist id="accounts-menu" oncommand="processSelection();">
-                  <menupopup>
-                    <menuitem label="Guest" selected="true"/>
-                    <script>
-                      loadAccounts();
-                    </script>
-                  </menupopup>
-                </menulist>
+                <label value="Username:"/>
+                <textbox id="username-input" width="100px"/>
               </row>
-              <row id="add-row" hidden="true">
-                <spacer flex="1"/>
-                <textbox id="add-input"/>
-              </row>
-              <row id="password-row" hidden="true">
+              <row id="password-row">
                 <label id="password-label" value="Password:"/>
                 <textbox id="password-input" width="100px" type="password"/>
               </row>
@@ -53,13 +42,24 @@
           </hbox>
         </vbox>
       </groupbox>
-      <groupbox>
-        <hbox>
-          <label value="I do not have an account"/>
-          <button id="create-button" label="Create Account" 
-                  oncommand="alert('Create account through sync or something');"/>
-        </hbox>
-      </groupbox>
+      <grid>
+        <columns>
+          <column flex="1"/>
+          <column flex="2"/>
+        </columns>
+        <rows>
+          <row>
+            <button id="create-button" label="Create Account" 
+              oncommand="createAccount();"/>
+            <label value="I do not have an account. Make me one."/>
+          </row>
+          <row>
+            <button id="guest-button" label="Guest Login"
+              oncommand="guestLogin();"/>
+            <label value="I don't want to login, use the Guest account."/>
+          </row>
+        </rows>
+      </grid>
       <button id="test" label="debug:profile-info" oncommand="test();"/>
     </vbox>
     <spacer flex="1"/>
