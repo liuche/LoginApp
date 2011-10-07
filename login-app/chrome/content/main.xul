@@ -38,7 +38,7 @@
           </grid>
           <hbox>
             <spacer flex="1"/>
-            <button id="login-button" label="Login" oncommand="login();"/>
+            <button id="login-button" label="Login" oncommand="userLogin();"/>
           </hbox>
         </vbox>
       </groupbox>

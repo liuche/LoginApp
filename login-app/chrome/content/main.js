@@ -30,6 +30,7 @@ let prefs = Cc["@mozilla.org/preferences-service;1"]
 
 // Global variables.
 const GUEST_ACCT = "guest";
+const NEW_ACCT = "newuser";
 // hardcoded FF location (for now)
 const DEFAULT_FF = "/Applications/Nightly.app/Contents/MacOS/firefox-bin";
 
@@ -38,17 +39,8 @@ let accounts = [];
 // Load imported accounts into UI, during startup. 
 function loadAccounts() {
   let accountsfile = FileUtils.getFile("ProfD", ["data", "accounts.txt"]);
-  if (accountsfile.exists()) {
-    NetUtil.asyncFetch(accountsfile, function(inputStream, status) {
-      if (Components.isSuccessCode(status)) {
-        accounts = NetUtil.readInputStreamToString(inputStream, inputStream.available()).split("\n");
-        accounts.pop(); // last entry is ""
-        dump("accounts:" + accounts + "\n");
-      } else {
-        dump("error reading from accounts-file\n");
-      }
-    });
-  }
+  accounts = readFromFile(accountsfile);
+  dump("accounts:" + accounts + "\n");
 }
 
 // Guest Login
@@ -71,6 +63,7 @@ function guestLogin() {
 // Username/password login
 function userLogin() {
   let username = document.getElementById("username-input").value;
+  loadAccounts();
 
   // Authenticate against sync account.
   dump("authing...\n");
@@ -118,32 +111,67 @@ function userLogin() {
   };
   client.send();
 }
+
 // Creates an account
 function createAccount() {
-  let newProfile = profileService.createProfile();
-  dump("newProfile name: " + newProfile.name + "\n");
+  dump("creating profile...\n");
+  let newProfile = profileService.createProfile(null, null, NEW_ACCT);
+
+  // Copy xpi to new profile's extensions
+  let xpifile = FileUtils.getFile("AChrom", ["content","sync-extension", "login-sync.xpi"]);
+  let dest = Cc["@mozilla.org/file/local;1"].
+                createInstance(Ci.nsILocalFile);
+  dest.initWithPath(newProfile.rootDir.path);
+  dest.append("extensions");
+  xpifile.copyTo(dest, null);
+
+  launchAccount(newProfile);
 }
 
 // Adds an account and writes it to file so it will be loaded next time.
 function importAccount(username) {
-  // check if in accounts
-  if (accounts.indexOf(username) > -1) {
-    dump("already loaded " + username + "; continuing\n");
-    return;
-  }
+  // Create profile for user.
+  let userProfile = profileService.createProfile(null, null, username);
+  profileService.flush();
+
   accounts.push(username);
 
   let accountsfile = FileUtils.getFile("ProfD", ["data", "accounts.txt"]);
   dump(accountsfile + "\n");
-  appendAcct(accountsfile, username + "\n");
-  dump("started async write\n");
-  let userProfile = profileService.createProfile(null, null, username);
-  // TODO copy sync setup addon over 
-  profileService.flush();
+  writeToFile(accountsfile, username + "\n");
+  //let userProfile = profileService.getProfileByName(username);
+
+  // Write username/sync-key to JSON, for fetching sync key.
+  let userpassfile = Cc["@mozilla.org/file/local;1"].
+                createInstance(Ci.nsILocalFile);
+  dump("create instance\n");
+  userpassfile.initWithPath(userProfile.rootDir.path);
+  dump("exists:" + userpassfile.exists() + "\n");
+  dump("init dest\n");
+  userpassfile.append("sync-data.json");
+  let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
+  let passwd = document.getElementById("password-input").value;
+
+  let userObj = {"usernameHash" : usernameHash,
+    "userpassHash" : btoa(usernameHash + ":" + passwd)};
+  let userJson = JSON.stringify(userObj);
+  dump("stringify: " + userJson + "\n");
+  writeToFile(userpassfile, userJson);
+
+  // Copy xpi to new profile's extensions.
+//  let xpifile = FileUtils.getFile("AChrom", ["content","sync-extension", "login-sync.xpi"]);
+//  let dest = Cc["@mozilla.org/file/local;1"].
+//                createInstance(Ci.nsILocalFile);
+//  dest.initWithPath(userProfile.rootDir.path);
+//  dest.append("extensions");
+//  xpifile.copyTo(dest, null);
+
+
 }
 
 // Starts selected profile in a separate Firefox profile.
 function launchAccount(profile) {
+  // locate Firefox 
   let ffFile;
   try {
     // TODO not the best way to load files. prolly. 
@@ -154,6 +182,7 @@ function launchAccount(profile) {
     dump("error:" + e + ":" + DEFAULT_FF);
   }
 
+  // Launch Firefox process with profile.
   let processargs = ["-profile", profile.rootDir.path];
   let process = Cc["@mozilla.org/process/util;1"].
                    createInstance(Ci.nsIProcess);
@@ -171,11 +200,11 @@ function launchAccount(profile) {
  */
 
 // Writes data to file.
-function appendAcct(file, data) {
+function writeToFile(file, data) {
   dump("starting write\n");
   // TODO does not append! overwrites for some reason!
   var ostream = FileUtils.openSafeFileOutputStream(file,
-                   FileUtils.MODE_CREATE | FileUtils.MODE_APPEND);
+                   FileUtils.MODE_CREATE | FileUtils.MODE_WRONLY | FileUtils.MODE_APPEND);
   var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                      createInstance(Ci.nsIScriptableUnicodeConverter);
   converter.charset = "UTF-8";
@@ -188,7 +217,49 @@ function appendAcct(file, data) {
   });
 }
 
+// Synchronous write to file
+function readFromFile(file) {
+  let istream = Cc["@mozilla.org/network/file-input-stream;1"].
+                   createInstance(Ci.nsIFileInputStream);
+  istream.init(file, 0x01, 0444,0);
+  istream.QueryInterface(Ci.nsILineInputStream);
+  dump("reading\n");
+
+  let line = {}, lines = [], hasmore;
+  do {
+    hasmore = istream.readLine(line);
+    dump("line:" + line.value + "\n");
+    lines.push(line.value);
+  } while(hasmore);
+  istream.close();
+  dump("done reading\n");
+  return lines;
+}
+
 function test() {
+  let thisProfile = profileService.selectedProfile;
   dump("This profile: ");
-  dump(profileService.selectedProfile.name + "\n");
+  dump(thisProfile.name + "\n");
+  dump("testing JSON\n");
+  let obj = {"username":"user1"};
+  let jObj = JSON.stringify(obj);
+  dump("obj:" + jObj + "\n");
+  var unjObj = JSON.parse(jObj);
+  dump(unjObj["username"] + "\n");
+  dump("testing write\n");
+  let file = FileUtils.getFile("ProfD", ["data", "test.json"]);
+  dump("got file\n");
+  writeToFile(file, jObj);
+
+//  dump("written...now testing:\n");
+//
+//  let infile = FileUtils.getFile("ProfD", ["data", "test.json"]);
+//  let readStr = readFromFile(infile);
+//  dump("readStr: " + readStr + "\n");
+//  if (readStr != null) {
+//    dump("read:" + readStr + "\n");
+//    let outjson = JSON.parse(readStr[0]);
+//    dump("username:" + outjson["username"] + "\n");
+//  }
+//  dump("done reading\n");
 }
