@@ -1,10 +1,24 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
+const Cr = Components.results;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Services.jsm");
+function addResourceAlias() {
+  Cu.import("resource://gre/modules/Services.jsm");
+  const resProt = Services.io.getProtocolHandler("resource")
+                          .QueryInterface(Ci.nsIResProtocolHandler);
+  let uri;
+  uri = Services.io.newURI("resource://gre/modules/services-sync/", null, null);
+  resProt.setSubstitution("services-sync", uri);
+  uri = Services.io.newURI("resource://gre/modules/services-crypto/", null, null);
+  resProt.setSubstitution("services-crypto", uri);
+}
+addResourceAlias();
+
+Cu.import("resource://services-sync/util.js");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource://services-sync/service.js");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import("resource://services-sync/main.js");
 
@@ -13,37 +27,29 @@ function install(data, reason) {
 
   // Get Sync set up.
   let accountfile = FileUtils.getFile("ProfD", ["sync-data.json"]);
-  if (accountfile.exists()) { // imported user
-    // Fetch sync data using creds.
-    Services.prompt.alert(null, "user exists", "user exists");
-  } else {
+  if (!accountfile.exists()) {
     Services.prompt.alert(null, "setting up observer", "Obs.add");
     // Register "sync-complete" observer 
     Weave.Svc.Obs.add("weave:service:setup-complete", function onSyncFinish() {
       Services.prompt.alert(null, "SETUP-COMPLETE", "passphrase:");
       Services.prompt.alert(null, "passphrase", Weave.Service.passphrase);
+
+      // Store creds for sync in profile.
       let username = Weave.Service.username;
       let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
       let passwd = Weave.Service.password;
       let synckey = Weave.Service.passphrase;
-      Services.prompt.alert(null, "Username:" + username, "passwd: " + passwd + "/" + synckey);
+      Services.prompt.alert(null, "testing btoa", btoa("hello"));
+      Services.prompt.alert(null, "Username:" + username, "btoa: " + btoa(usernameHash + ":" + passwd));
 
-      // Store creds for sync in profile.
-      Services.prompt.alert(null, "storing creds", "creds");
+      Services.prompt.alert(null, "storing creds", "(creds)");
       let userObj = {"usernameHash" : usernameHash,
         "userpassHash" : btoa(usernameHash + ":" + passwd),
         "synckey" : synckey};
+      Services.prompt.alert(null, "userobj","userobj");
       let userJson = JSON.stringify(userObj);
-      dump("stringify: " + userJson + "\n");
+      Services.prompt.alert(null, "stringify, then write", userJson);
       writeToFile(accountfile, userJson);
-
-      // Rename profile
-      let profileService = Cc["@mozilla.org/toolkit/profile-service;1"].
-                              createInstance(Ci.nsIToolkitProfileService);
-      profileService.getSelectProfile.name = username;
-      profileService.flush();
-      Services.prompt.alert(null, "dumped profile", username);
-
     });
   }
 }
@@ -97,6 +103,6 @@ function writeToFile(file, data) {
     if (!Components.isSuccessCode(status)) {
       Services.prompt.alert(null, "error writing","error writing");
     }
-    ostream.close();
+    Services.prompt.alert(null, "done writing", "done writing");
   });
 }
