@@ -21,6 +21,7 @@ Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://services-sync/service.js");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import("resource://services-sync/main.js");
+var btoa = Cu.import("resource://services-sync/log4moz.js").btoa;
 
 function install(data, reason) {
   Services.prompt.alert(null, "install()", "installing");
@@ -33,6 +34,8 @@ function install(data, reason) {
     Weave.Svc.Obs.add("weave:service:setup-complete", function onSyncFinish() {
       Services.prompt.alert(null, "SETUP-COMPLETE", "passphrase:");
       Services.prompt.alert(null, "passphrase", Weave.Service.passphrase);
+
+      // TODO rename profile; can't do at runtime, clone and copy later
 
       // Store creds for sync in profile.
       let username = Weave.Service.username;
@@ -56,6 +59,7 @@ function install(data, reason) {
 
 function startup(data, reason) {
   Services.prompt.alert(null, "startup()", "startup");
+  Services.prompt.alert(null, "btoa", btoa("hello"));
   // Start up sync if sync key is stored.
   let accountfile= FileUtils.getFile("ProfD", ["sync-data.json"]);
   if (accountfile.exists()) {
