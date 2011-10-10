@@ -33,13 +33,17 @@ const GUEST_ACCT = "guest";
 const NEW_ACCT = "newuser";
 // hardcoded FF location (for now)
 const DEFAULT_FF = "/Applications/Nightly.app/Contents/MacOS/firefox-bin";
+//const DEFAULT_FF = "/Applications/Firefox.app/Contents/MacOS/firefox-bin";
+const EXT_ID = "sync-setup@ff-login.com.xpi";
 
 let accounts = [];
 
 // Load imported accounts into UI, during startup. 
 function loadAccounts() {
   let accountsfile = FileUtils.getFile("ProfD", ["data", "accounts.txt"]);
-  accounts = readFromFile(accountsfile);
+  if (accountsfile.exists()) {
+    accounts = readFromFile(accountsfile);
+  }
   dump("accounts:" + accounts + "\n");
 }
 
@@ -62,6 +66,7 @@ function guestLogin() {
 
 // Username/password login
 function userLogin() {
+  dump("loggin in\n");
   let username = document.getElementById("username-input").value;
   loadAccounts();
 
@@ -91,9 +96,12 @@ function userLogin() {
           switch(this.status) {
             case 200: // Success!
               if (accounts.indexOf(username) == -1) { // account does not exist locally
+                dump("login importing\n");
                 importAccount(username);
+                dump("login done importing\n");
               }
               let userProfile = profileService.getProfileByName(username);
+              dump("launching profile " + userProfile.name + "\n");
               launchAccount(userProfile);
               break;
             case 401: // Unauthorized
@@ -116,9 +124,10 @@ function userLogin() {
 function createAccount() {
   dump("creating profile...\n");
   let newProfile = profileService.createProfile(null, null, NEW_ACCT);
+  profileService.flush();
 
   // Copy xpi to new profile's extensions
-  let xpifile = FileUtils.getFile("AChrom", ["content","sync-extension", "login-sync.xpi"]);
+  let xpifile = FileUtils.getFile("AChrom", ["content","sync-extension", EXT_ID]);
   let dest = Cc["@mozilla.org/file/local;1"].
                 createInstance(Ci.nsILocalFile);
   dest.initWithPath(newProfile.rootDir.path);
@@ -139,7 +148,6 @@ function importAccount(username) {
   let accountsfile = FileUtils.getFile("ProfD", ["data", "accounts.txt"]);
   dump(accountsfile + "\n");
   writeToFile(accountsfile, username + "\n");
-  //let userProfile = profileService.getProfileByName(username);
 
   // Write username/sync-key to JSON, for fetching sync key.
   let userpassfile = Cc["@mozilla.org/file/local;1"].
@@ -147,7 +155,7 @@ function importAccount(username) {
   dump("create instance\n");
   userpassfile.initWithPath(userProfile.rootDir.path);
   dump("exists:" + userpassfile.exists() + "\n");
-  dump("init dest\n");
+  dump("init sync-data.json\n");
   userpassfile.append("sync-data.json");
   let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
   let passwd = document.getElementById("password-input").value;
@@ -158,21 +166,24 @@ function importAccount(username) {
   dump("stringify: " + userJson + "\n");
   writeToFile(userpassfile, userJson);
 
-  // Copy xpi to new profile's extensions.
-//  let xpifile = FileUtils.getFile("AChrom", ["content","sync-extension", "login-sync.xpi"]);
-//  let dest = Cc["@mozilla.org/file/local;1"].
-//                createInstance(Ci.nsILocalFile);
-//  dest.initWithPath(userProfile.rootDir.path);
-//  dest.append("extensions");
-//  xpifile.copyTo(dest, null);
-
-
+  // Copy xpi to new profile's extensions
+//
+  dump("copying xpi\n");
+  let xpifile = FileUtils.getFile("AChrom", ["content","sync-extension", EXT_ID]);
+  let dest = Cc["@mozilla.org/file/local;1"].
+                createInstance(Ci.nsILocalFile);
+  dest.initWithPath(userProfile.rootDir.path);
+  dest.append("extensions");
+  dump("xpi dest: " + dest.path + "\n");
+  xpifile.copyTo(dest, null);
+  dump("sent copy request\n");
 }
 
 // Starts selected profile in a separate Firefox profile.
 function launchAccount(profile) {
   // locate Firefox 
   let ffFile;
+  dump("locating ff\n");
   try {
     // TODO not the best way to load files. prolly. 
     ffFile = Cc["@mozilla.org/file/local;1"].
@@ -214,10 +225,11 @@ function writeToFile(file, data) {
     if (!Components.isSuccessCode(status)) {
       dump("error writing\n");
     }
+    dump("finished writing\n");
   });
 }
 
-// Synchronous write to file
+// Synchronous read from file
 function readFromFile(file) {
   let istream = Cc["@mozilla.org/network/file-input-stream;1"].
                    createInstance(Ci.nsIFileInputStream);
