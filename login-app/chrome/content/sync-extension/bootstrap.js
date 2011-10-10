@@ -53,7 +53,44 @@ function install(data, reason) {
       let userJson = JSON.stringify(userObj);
       Services.prompt.alert(null, "stringify, then write", userJson);
       writeToFile(accountfile, userJson);
-    });
+
+//      // Store sync key on sync key server.
+//      let client = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
+//      client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
+//
+//      dump("setting handler\n");
+//      // Handler for success in sync node request
+//      client.onreadystatechange = function handler() {
+//        dump("state:" + this.readyState + "/status:" + this.status + "/statusText:" + this.statusText + "\n");
+//
+//        if (this.readyState == 2 && this.status == 404) {
+//          alert("Username does not exist. Please try 'Create Account'.");
+//        } else if (this.readyState == 4 && this.status == 200) {
+//          let server = client.responseText;
+//
+//          // Handler to authenticate against the server node.
+//          client.onreadystatechange = function handler1() {
+//            dump("state:" + this.readyState + "/status:" + this.status + "/statusText:" + this.statusText + "\n");
+//            if (this.readyState == 4) {
+//              switch(this.status) {
+//                case 200: // Success!
+//                  break;
+//                case 401: // Unauthorized
+//                  break;
+//                default:
+//                  alert("Error: " + this.statusText);
+//              }
+//            }
+//          };
+//          let wbo = {"id" : usernameHash, "payload" : synckey};
+//          client.open("PUT", server + "1.0/" + usernameHash + "/storage/keyescrow/key\n");
+//          client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+//          client.send();
+//        }
+//      };
+//      client.send();
+//
+//  });
   }
 }
 

@@ -76,7 +76,7 @@ function userLogin() {
   let passwd = document.getElementById("password-input").value;
 
   // Determine sync server node and get authenticated.
-  let client = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
+  let client = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
   client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
 
   dump("setting handler\n");
