@@ -134,7 +134,7 @@ function createAccount() {
   dest.append("extensions");
   xpifile.copyTo(dest, null);
 
-  launchAccount(newProfile);
+  launchAccount(newProfile, true);
 }
 
 // Adds an account and writes it to file so it will be loaded next time.
@@ -180,7 +180,7 @@ function importAccount(username) {
 }
 
 // Starts selected profile in a separate Firefox profile.
-function launchAccount(profile) {
+function launchAccount(profile, create) {
   // locate Firefox 
   let ffFile;
   dump("locating ff\n");
@@ -195,11 +195,17 @@ function launchAccount(profile) {
 
   // Launch Firefox process with profile.
   let processargs = ["-profile", profile.rootDir.path];
+  if (create) {
+    processargs.push("-chrome");
+    processargs.push("chrome://browser/content/syncSetup.xul");
+  }
   let process = Cc["@mozilla.org/process/util;1"].
                    createInstance(Ci.nsIProcess);
   try {
+
     process.init(ffFile);
     process.run(false, processargs, processargs.length);
+
   } catch(e) {
     dump("ERROR starting process! " + e + "\n");
   }
