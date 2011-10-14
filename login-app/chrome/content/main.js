@@ -160,8 +160,11 @@ function importAccount(username) {
   let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
   let passwd = document.getElementById("password-input").value;
 
-  let userObj = {"usernameHash" : usernameHash,
-    "userpassHash" : btoa(usernameHash + ":" + passwd)};
+  let userObj = {"account" : username,
+    "password" : passwd,
+    "usernameHash" : usernameHash,
+    "userpassHash" : btoa(usernameHash + ":" + passwd)
+  };
   let userJson = JSON.stringify(userObj);
   dump("stringify: " + userJson + "\n");
   writeToFile(userpassfile, userJson);
