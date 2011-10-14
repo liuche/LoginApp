@@ -86,7 +86,7 @@ function install(data, reason) {
       client.send();
       log("sent SERVER-GET\n");
     });
-  } 
+  }
 }
 // Observer functions
 function testPutObs(subject, topic, data) {
@@ -152,6 +152,7 @@ function startup(data, reason) {
           Weave.Service.passphrase = jsonObj["payload"];
           log("account: " + Weave.Service.account + " pass:" + Weave.Service.password + " passphrase:" + Weave.Service.passphrase + "\n");
           Weave.Service.login();
+          Weave.Service.sync();
           log("sync login...!\n");
         }
       };
