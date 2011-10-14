@@ -86,7 +86,44 @@ function install(data, reason) {
       client.send();
       log("sent SERVER-GET\n");
     });
-  } else {
+  } 
+}
+// Observer functions
+function testPutObs(subject, topic, data) {
+        log("testing PUT, sending GET...\n");
+        client.open("GET", data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
+        log(data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
+        client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+        client.setreadystatechange(function() {
+          log("handler for PUT check (GET):" + this.readyState + "/" + this.responseText + "\n");
+        });
+        client.send();
+        log("sent PUT-GET\n");
+}
+function putObs(subject, topic, data){
+          log("starting PUT\n");
+          log("server:" + data + " usernameHash:" + usernameHash + "\n");
+          client.open("PUT", data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
+          client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+          let wboJson = JSON.stringify({
+            "id":"key",
+            "payload": synckey
+          });
+          log("wboJson: " + wboJson + "\n");
+          client.onreadystatechange = function() {
+            log("PUT:statechange : " + this.readyState + " " + this.status + " " + this.responseText + "\n");
+            if (this.readyState == 4 && this.status == 200) {
+              log("notifying PUT-check\n");
+              obsService.notifyObservers(null, "login:PUT:ok", data);
+            }
+          };
+          log("sending wboJson\n");
+          client.send(wboJson);
+}
+
+function startup(data, reason) {
+  let accountfile = FileUtils.getFile("ProfD", ["sync-data.json"]);
+  if (accountfile.exists()) { // returning user
     log("setting up existing user\n");
     let jsonObj= readFromFile(accountfile)[0];
     let userObj = JSON.parse(jsonObj);
@@ -144,41 +181,6 @@ function install(data, reason) {
     client.send();
     log("getting server: request sent\n");
   }
-}
-// Observer functions
-function testPutObs(subject, topic, data) {
-        log("testing PUT, sending GET...\n");
-        client.open("GET", data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
-        log(data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
-        client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
-        client.setreadystatechange(function() {
-          log("handler for PUT check (GET):" + this.readyState + "/" + this.responseText + "\n");
-        });
-        client.send();
-        log("sent PUT-GET\n");
-}
-function putObs(subject, topic, data){
-          log("starting PUT\n");
-          log("server:" + data + " usernameHash:" + usernameHash + "\n");
-          client.open("PUT", data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
-          client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
-          let wboJson = JSON.stringify({
-            "id":"key",
-            "payload": synckey
-          });
-          log("wboJson: " + wboJson + "\n");
-          client.onreadystatechange = function() {
-            log("PUT:statechange : " + this.readyState + " " + this.status + " " + this.responseText + "\n");
-            if (this.readyState == 4 && this.status == 200) {
-              log("notifying PUT-check\n");
-              obsService.notifyObservers(null, "login:PUT:ok", data);
-            }
-          };
-          log("sending wboJson\n");
-          client.send(wboJson);
-}
-
-function startup(data, reason) {
 }
 
 function shutdown(data, reason) {
