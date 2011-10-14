@@ -21,59 +21,128 @@ Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://services-sync/service.js");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import("resource://services-sync/main.js");
+
+var DEBUG = true;
 var btoa = Cu.import("resource://services-sync/log4moz.js").btoa;
+const NEWUSER = "newuser";
+var obsService= Cc["@mozilla.org/observer-service;1"].
+                  getService(Ci.nsIObserverService);
 
+let logfile = FileUtils.getFile("ProfD", ["logfile.txt"]);
+let usernameHash;
+let passwd;
+let synckey;
+let client;
+
+/* Install function for bootstrapping.
+ * 
+ * Checks for user credentials in "sync-data.json".
+* If doesn't exist, stores creds and sends to key escrow.
+ *
+ */
 function install(data, reason) {
-  Services.prompt.alert(null, "install()", "installing");
+  log("installing\n");
+  log("installing line 2\n");
 
-  // Get Sync set up.
+  // New user; store user credentials.
   let accountfile = FileUtils.getFile("ProfD", ["sync-data.json"]);
-  if (!accountfile.exists()) {
-    Services.prompt.alert(null, "setting up observer", "Obs.add");
-    // Register "sync-complete" observer 
+  if (!accountfile.exists()) { // New user
+    // Register "sync-complete" observer for a new user.
     Weave.Svc.Obs.add("weave:service:setup-complete", function onSyncFinish() {
-      Services.prompt.alert(null, "SETUP-COMPLETE", "passphrase:");
-      Services.prompt.alert(null, "passphrase", Weave.Service.passphrase);
+      log("SETUP COMPLETE; passphrase:" + Weave.Service.passphrase + "\n");
 
-      // TODO rename profile; can't do at runtime, clone and copy later
+      usernameHash = Weave.Service.username;
+      passwd = Weave.Service.password;
+      synckey = Weave.Service.passphrase;
 
-      // Store creds for sync in profile.
-      let username = Weave.Service.username;
-      let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
-      let passwd = Weave.Service.password;
-      let synckey = Weave.Service.passphrase;
-      Services.prompt.alert(null, "testing btoa", btoa("hello"));
-      Services.prompt.alert(null, "Username:" + username, "btoa: " + btoa(usernameHash + ":" + passwd));
+      client = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
 
-      Services.prompt.alert(null, "storing creds", "(creds)");
-      let userObj = {"usernameHash" : usernameHash,
-        "userpassHash" : btoa(usernameHash + ":" + passwd),
-        "synckey" : synckey};
-      Services.prompt.alert(null, "userobj","userobj");
-      let userJson = JSON.stringify(userObj);
-      Services.prompt.alert(null, "stringify, then write", userJson);
-      writeToFile(accountfile, userJson);
+      // Test observer
+      obsService.addObserver(testPutObs, "login:PUT:ok", false);
+      // Store creds on sync escrow.
+      // Determine sync server node and get authenticated.
+      log("start: getting node\n");
+      client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave\n");
+      log("GET, https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave\n");
+      // Add observer to start PUT
+      obsService.addObserver(putObs, "login:http:ok", false);
+      // Handler for success in sync node request
+      client.onreadystatechange = function () {
+        log("statechange: " + this.readyState + " " + this.status + "\n");
+        if (this.readyState == 4 && this.status == 200) {
+          // success
+          log("notifying " + this.readyState + " " + this.status + " " + this.responseText + "\n");
+          obsService.notifyObservers(null, "login:http:ok", this.responseText);
+          log("notified; " + this.readyState + " " + this.status + " " + this.responseText + "\n");
+        } else if (this.readyState == 4 && this.status == 0) {
+          // HACK TODO: fix
+          // server doesn't store user data fast enough
+          Weave.Svc.Obs.notify("weave:service:setup-complete");
+        }
+      }
+      client.send();
+      log("sent SERVER-GET\n");
     });
   }
 }
-
+// Observer functions
+function testPutObs(subject, topic, data) {
+        log("testing PUT, sending GET...\n");
+        client.open("GET", data + "1.1/" + usernameHash + "/storage/keyescrow/key\n\n");
+        log(data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
+        client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+        client.setreadystatechange(function() {
+          log("handler for PUT check (GET):" + this.readyState + "/" + this.responseText + "\n");
+        });
+        client.send();
+        log("sent PUT-GET\n");
+}
+function putObs(subject, topic, data){
+          log("starting PUT\n");
+          log("server:" + data + " usernameHash:" + usernameHash + "\n");
+          client.open("PUT", data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
+          client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+          let wboJson = JSON.stringify({
+            "id":"key",
+            "payload": synckey
+          });
+          log("wboJson: " + wboJson + "\n");
+          client.onreadystatechange = function() {
+            log("PUT:statechange : " + this.readyState + " " + this.status + " " + this.responseText + "\n");
+            if (this.readyState == 4 && this.status == 200) {
+              log("notifying PUT-check\n");
+              obsService.notifyObservers(null, "login:PUT:ok", data);
+            }
+          };
+          log("sending wboJson\n");
+          client.send(wboJson);
+}
 function startup(data, reason) {
-  Services.prompt.alert(null, "startup()", "startup");
-  Services.prompt.alert(null, "btoa", btoa("hello"));
   // Start up sync if sync key is stored.
-  let accountfile= FileUtils.getFile("ProfD", ["sync-data.json"]);
+  let accountfile = FileUtils.getFile("ProfD", ["sync-data.json"]);
   if (accountfile.exists()) {
     let userObj = JSON.parse(readFromFile(accountfile)[0]);
     let synckey = userObj["synckey"];
     if (synckey != undefined) {
       Services.prompt.alert(null, "Sync Key", synckey);
     } else {
+      // Fetch sync key from keyescrow
       Services.prompt.alert("null", "no sync key", "none");
     }
   }
 }
 
-function shutdown(data, reason) {}
+function shutdown(data, reason) {
+  let profileService = Cc["@mozilla.org/toolkit/profile-service;1"]
+                                .createInstance(Ci.nsIToolkitProfileService);
+  if (profileService.selectedProfile.name == NEWUSER) {
+    // TODO clone profile and rename it
+  }
+}
+
+/*
+ * Helper functions
+ */
 
 // Synchronous read from file
 function readFromFile(file) {
@@ -96,9 +165,7 @@ function readFromFile(file) {
 
 // Writes data to file.
 function writeToFile(file, data) {
-  // TODO does not append! overwrites for some reason!
-  var ostream = FileUtils.openSafeFileOutputStream(file,
-                   FileUtils.MODE_CREATE | FileUtils.MODE_WRONLY | FileUtils.MODE_APPEND);
+  var ostream = FileUtils.openFileOutputStream(file, FileUtils.MODE_APPEND | FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE);
   var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                      createInstance(Ci.nsIScriptableUnicodeConverter);
   converter.charset = "UTF-8";
@@ -107,6 +174,10 @@ function writeToFile(file, data) {
     if (!Components.isSuccessCode(status)) {
       Services.prompt.alert(null, "error writing","error writing");
     }
-    Services.prompt.alert(null, "done writing", "done writing");
   });
 }
+
+function log(data) {
+  if (DEBUG) writeToFile(logfile, data);
+}
+
