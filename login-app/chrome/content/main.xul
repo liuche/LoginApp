@@ -60,7 +60,6 @@
           </row>
         </rows>
       </grid>
-      <button id="test" label="debug:profile-info" oncommand="test();"/>
     </vbox>
     <spacer flex="1"/>
   </hbox>

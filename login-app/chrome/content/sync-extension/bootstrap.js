@@ -177,18 +177,13 @@ function putObs(subject, topic, data){
           log("sending wboJson\n");
           client.send(wboJson);
 }
+
 function startup(data, reason) {
 }
 
 function shutdown(data, reason) {
-  let profileService = Cc["@mozilla.org/toolkit/profile-service;1"]
-                                .createInstance(Ci.nsIToolkitProfileService);
-  let thisProfile = profileService.selectedProfile;
-  if (thisProfile.name == NEWUSER) {
-    // TODO clone profile and rename it
-    thisProfile.name = username;
-    profileService.flush();
-  }
+  Weave.Service.sync();
+  log("syncing...\n");
 }
 
 /*

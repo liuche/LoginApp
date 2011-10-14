@@ -123,7 +123,14 @@ function userLogin() {
 // Creates an account
 function createAccount() {
   dump("creating profile...\n");
-  let newProfile = profileService.createProfile(null, null, NEW_ACCT);
+  let newProfile;
+  try {
+    newProfile = profileService.getProfileByName(NEW_ACCT);
+    newProfile.remove(true);
+  } catch(e){
+    dump("newuser account does not exist\n");
+  }
+  newProfile = profileService.createProfile(null, null, NEW_ACCT);
   profileService.flush();
 
   // Copy xpi to new profile's extensions
