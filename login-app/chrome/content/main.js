@@ -33,7 +33,7 @@ const GUEST_ACCT = "guest";
 const NEW_ACCT = "newuser";
 // hardcoded FF location (for now)
 const DEFAULT_FF = "/Applications/Nightly.app/Contents/MacOS/firefox-bin";
-//const DEFAULT_FF = "/Applications/Firefox.app/Contents/MacOS/firefox-bin";
+//const DEFAULT_FF = "/usr/bin/nightly";
 const EXT_ID = "sync-setup@ff-login.com.xpi";
 
 let accounts = [];
@@ -123,7 +123,14 @@ function userLogin() {
 // Creates an account
 function createAccount() {
   dump("creating profile...\n");
-  let newProfile = profileService.createProfile(null, null, NEW_ACCT);
+  let newProfile;
+  try {
+    newProfile = profileService.getProfileByName(NEW_ACCT);
+    newProfile.remove(true);
+  } catch(e){
+    dump("newuser account does not exist\n");
+  }
+  newProfile = profileService.createProfile(null, null, NEW_ACCT);
   profileService.flush();
 
   // Copy xpi to new profile's extensions
@@ -160,8 +167,11 @@ function importAccount(username) {
   let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
   let passwd = document.getElementById("password-input").value;
 
-  let userObj = {"usernameHash" : usernameHash,
-    "userpassHash" : btoa(usernameHash + ":" + passwd)};
+  let userObj = {"account" : username,
+    "password" : passwd,
+    "usernameHash" : usernameHash,
+    "userpassHash" : btoa(usernameHash + ":" + passwd)
+  };
   let userJson = JSON.stringify(userObj);
   dump("stringify: " + userJson + "\n");
   writeToFile(userpassfile, userJson);
@@ -220,7 +230,7 @@ function launchAccount(profile, create) {
 function writeToFile(file, data) {
   dump("starting write\n");
   // TODO does not append! overwrites for some reason!
-  var ostream = FileUtils.openSafeFileOutputStream(file,
+  var ostream = FileUtils.openFileOutputStream(file,
                    FileUtils.MODE_CREATE | FileUtils.MODE_WRONLY | FileUtils.MODE_APPEND);
   var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                      createInstance(Ci.nsIScriptableUnicodeConverter);
@@ -254,30 +264,165 @@ function readFromFile(file) {
   return lines;
 }
 
-function test() {
-  let thisProfile = profileService.selectedProfile;
-  dump("This profile: ");
-  dump(thisProfile.name + "\n");
-  dump("testing JSON\n");
-  let obj = {"username":"user1"};
-  let jObj = JSON.stringify(obj);
-  dump("obj:" + jObj + "\n");
-  var unjObj = JSON.parse(jObj);
-  dump(unjObj["username"] + "\n");
-  dump("testing write\n");
-  let file = FileUtils.getFile("ProfD", ["data", "test.json"]);
-  dump("got file\n");
-  writeToFile(file, jObj);
+function send() {
+  // Test sending something to keyescrow.
+  // Authenticate against sync account.
+  dump("authing...\n");
+  let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
+  let passwd = document.getElementById("password-input").value;
 
-//  dump("written...now testing:\n");
-//
-//  let infile = FileUtils.getFile("ProfD", ["data", "test.json"]);
-//  let readStr = readFromFile(infile);
-//  dump("readStr: " + readStr + "\n");
-//  if (readStr != null) {
-//    dump("read:" + readStr + "\n");
-//    let outjson = JSON.parse(readStr[0]);
-//    dump("username:" + outjson["username"] + "\n");
-//  }
-//  dump("done reading\n");
+  // Determine sync server node and get authenticated.
+  let client = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
+  client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
+
+  dump("setting handler\n");
+  // Handler for success in sync node request
+  client.onreadystatechange = function handler() {
+    dump("state:" + this.readyState + "/status:" + this.status + "/statusText:" + this.statusText + "\n");
+
+    if (this.readyState == 2 && this.status == 404) {
+      alert("Username does not exist. Please try 'Create Account'.");
+    } else if (this.readyState == 4 && this.status == 200) {
+      let server = client.responseText;
+
+      // Handler to authenticate against the server node.
+      client.onreadystatechange = function handler1() {
+        dump("state:" + this.readyState + "/status:" + this.status + "/statusText:" + this.statusText + "\n");
+        if (this.readyState == 4) {
+          switch(this.status) {
+            case 200: // Success!
+              if (accounts.indexOf(username) == -1) { // account does not exist locally
+                dump("login importing\n");
+                importAccount(username);
+                dump("login done importing\n");
+              }
+              let userProfile = profileService.getProfileByName(username);
+              dump("launching profile " + userProfile.name + "\n");
+              launchAccount(userProfile);
+              break;
+            case 401: // Unauthorized
+              alert("Incorrect Password");
+              break;
+            default:
+              alert("Error: " + this.statusText);
+          }
+        }
+      };
+      let wbo = {id : "1", payload : "testkey"};
+      client.open("PUT", server + "1.0/" + usernameHash + "/storage/keyescrow/key\n");
+      client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+      client.send(wbo);
+    }
+  };
+  client.send();
+}
+
+function fetch() {
+
+}
+
+// Locates user node, and sets handler for communicating.
+function sendToServer(username, password, handler) {
+  // Authenticate against sync account.
+  let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
+
+  // Determine sync server node and get authenticated.
+  let client = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
+  client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
+
+  dump("setting handler\n");
+  // Handler for success in sync node request
+  client.onreadystatechange = function handler() {
+    dump("state:" + this.readyState + "/status:" + this.status + "/statusText:" + this.statusText + "\n");
+
+    if (this.readyState == 2 && this.status == 404) {
+      alert("Username does not exist. Please try 'Create Account'.");
+    } else if (this.readyState == 4 && this.status == 200) {
+      let server = client.responseText;
+
+      // Handler to authenticate against the server node.
+      client.onreadystatechange = function handler1() {
+        dump("state:" + this.readyState + "/status:" + this.status + "/statusText:" + this.statusText + "\n");
+        if (this.readyState == 4) {
+          switch(this.status) {
+            case 200: // Success!
+              if (accounts.indexOf(username) == -1) { // account does not exist locally
+                dump("login importing\n");
+                importAccount(username);
+                dump("login done importing\n");
+              }
+              let userProfile = profileService.getProfileByName(username);
+              dump("launching profile " + userProfile.name + "\n");
+              launchAccount(userProfile);
+              break;
+            case 401: // Unauthorized
+              alert("Incorrect Password");
+              break;
+            default:
+              alert("Error: " + this.statusText);
+          }
+        }
+      };
+      let wbo = {id : "1", payload : "testkey"};
+      client.open("PUT", server + "1.0/" + usernameHash + "/storage/keyescrow/key\n");
+      client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+      client.send(wbo);
+    }
+  };
+  client.send();
+
+}
+
+function test() {
+
+  let client;
+  // test observers
+  let obsSvc = Cc["@mozilla.org/observer-service;1"].
+                  getService(Ci.nsIObserverService);
+
+  dump("testing\n");
+  let username = document.getElementById("username-input").value;
+  let passwd = document.getElementById("password-input").value;
+  let usernameHash = Utils.sha1Base32(username.toLowerCase()).toLowerCase();
+  let key = "testkey";
+  dump("username: " + username + "/" + usernameHash + "\n");
+
+  dump("setting obs\n");
+  obsSvc.addObserver(function (subj, topic, data) {
+    dump("observer firing!\n");
+
+    //client.open("GET", data + "1.1/" + usernameHash + "/info/collections\n");
+    client.open("GET", data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
+    //client.open("PUT", data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
+    client.setRequestHeader("Authorization", "Basic " + btoa(usernameHash + ":" + passwd));
+    let wbo = {
+      "id":"key",
+      "payload": "testkey"
+    };
+    client.onreadystatechange = function() {
+      dump("state:" + this.readyState + "/" + this.status + "\n");
+      dump(this.responseText + "\n");
+      obsSvc.notify(null, "obs:test:put");
+    };
+//    dump("sending:" + data + "1.1/" + usernameHash + "/info/collections\n");
+    dump("sending " + data + "1.1/" + usernameHash + "/storage/keyescrow/key\n");
+    client.send(JSON.stringify(wbo));
+  }, "obs:test:http", false);
+
+  dump("setting up node\n");
+  // send node request
+  client = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance();
+  //client.open("GET", "https://auth.services.mozilla.com/user/1.0/sxqpxefr5dhwcvx23xti7bpfgl3i75kr/node/weave");
+  client.open("GET", "https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
+  dump("sending GET, https://auth.services.mozilla.com/user/1.0/" + usernameHash + "/node/weave");
+  client.onreadystatechange = function() {
+    if (this.readyState == 2 && this.status == 404) {
+      dump("no user found\n");
+    } else if (this.readyState == 4 && this.status == 200) {
+      dump("success!\n");
+      obsSvc.notifyObservers(null, "obs:test:http",this.responseText);
+    }
+  }
+  dump("sending\n");
+  client.send();
 }
